@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,75 +8,94 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Edit, MapPin, Clock, Calendar } from "lucide-react"
 import Link from "next/link"
 import { SubjectForm } from "./subject-form"
+import { disciplinasAPI, lembretesAPI, contatosAPI, materiaisAPI } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface SubjectDetailsProps {
   subjectId: number
 }
 
-// Mock data - replace with actual API calls
-const mockSubject = {
-  id: 1,
-  nome: "Cálculo II",
-  sala: "Sala 201",
-  professor: "Prof. Silva",
-  horario: "Seg/Qua 14:00-16:00",
-  avaliacoes: "P1: 8.5, P2: 7.0",
-  faltas: 2,
-  notas: 7.75,
-  userId: 1,
+interface Subject {
+  id: number
+  nome: string
+  sala: string
+  professor: string
+  horario: string
+  semestre: string
+  avaliacoes: string
+  faltas: number
+  notas: number
+  userId: number
 }
 
-const mockReminders = [
-  {
-    id: 1,
-    data_inicio: new Date("2024-01-15T14:00:00"),
-    data_fim: new Date("2024-01-15T16:00:00"),
-    tipo: "Prova P2",
-  },
-  {
-    id: 2,
-    data_inicio: new Date("2024-01-20T14:00:00"),
-    data_fim: new Date("2024-01-20T16:00:00"),
-    tipo: "Entrega Lista 3",
-  },
-]
+interface Reminder {
+  id: number
+  nome: string
+  data_inicio: string
+  data_fim?: string
+  descricao?: string
+  discId: number
+}
 
-const mockContacts = [
-  {
-    id: 1,
-    nome: "Prof. Silva",
-    email: "silva@universidade.edu.br",
-    telefone: "(11) 99999-9999",
-  },
-  {
-    id: 2,
-    nome: "Monitor João",
-    email: "joao.monitor@universidade.edu.br",
-    telefone: "(11) 88888-8888",
-  },
-]
+interface Contact {
+  id: number
+  nome: string
+  email: string
+  telefone: string
+  discId: number
+}
 
-const mockMaterials = [
-  {
-    id: 1,
-    resumos: "Resumo sobre derivadas e integrais",
-    links: "https://exemplo.com/calculo2",
-    arquivos: "lista_exercicios_1.pdf",
-  },
-  {
-    id: 2,
-    resumos: "Anotações da aula sobre limites",
-    links: "https://exemplo.com/limites",
-    arquivos: "slides_aula_5.pdf",
-  },
-]
+interface Material {
+  id: number
+  resumos: string
+  links: string
+  arquivos: string
+  discId: number
+}
 
 export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
-  const [subject, setSubject] = useState(mockSubject)
+  const [subject, setSubject] = useState<Subject | null>(null)
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [materials, setMaterials] = useState<Material[]>([])
   const [showEditForm, setShowEditForm] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadData()
+  }, [subjectId])
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true)
+      const [subjectResponse, remindersResponse, contactsResponse, materialsResponse] = await Promise.all([
+        disciplinasAPI.getById(subjectId),
+        lembretesAPI.getByDisciplina(subjectId),
+        contatosAPI.getByDisciplina(subjectId),
+        materiaisAPI.getByDisciplina(subjectId),
+      ])
+      
+      setSubject(subjectResponse.data)
+      setReminders(remindersResponse.data || [])
+      setContacts(contactsResponse.data || [])
+      setMaterials(materialsResponse.data || [])
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os dados da disciplina.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleEditSubject = (subjectData: any) => {
-    setSubject({ ...subjectData, id: subject.id, userId: subject.userId })
+    if (subject) {
+      setSubject({ ...subjectData, id: subject.id, userId: subject.userId })
+    }
     setShowEditForm(false)
   }
 
@@ -92,19 +111,39 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
     return "bg-red-100 text-red-800"
   }
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("pt-BR", {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     })
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("pt-BR", {
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
     })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <p>Carregando dados da disciplina...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!subject) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <p>Disciplina não encontrada.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -183,14 +222,17 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {mockReminders.slice(0, 2).map((reminder) => (
+            {reminders.slice(0, 2).map((reminder) => (
               <div key={reminder.id} className="mb-3 last:mb-0">
-                <p className="font-medium text-sm">{reminder.tipo}</p>
+                <p className="font-medium text-sm">{reminder.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   {formatDate(reminder.data_inicio)} às {formatTime(reminder.data_inicio)}
                 </p>
               </div>
             ))}
+            {reminders.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum lembrete próximo</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -208,15 +250,18 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
             <Button size="sm">Novo Lembrete</Button>
           </div>
           <div className="grid gap-4">
-            {mockReminders.map((reminder) => (
+            {reminders.map((reminder) => (
               <Card key={reminder.id}>
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">{reminder.tipo}</p>
+                      <p className="font-medium">{reminder.nome}</p>
                       <p className="text-sm text-muted-foreground">
                         {formatDate(reminder.data_inicio)} às {formatTime(reminder.data_inicio)}
                       </p>
+                      {reminder.descricao && (
+                        <p className="text-sm text-muted-foreground mt-1">{reminder.descricao}</p>
+                      )}
                     </div>
                     <Button variant="ghost" size="sm">
                       <Edit className="h-4 w-4" />
@@ -225,6 +270,9 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
                 </CardContent>
               </Card>
             ))}
+            {reminders.length === 0 && (
+              <p className="text-muted-foreground text-center py-8">Nenhum lembrete cadastrado</p>
+            )}
           </div>
         </TabsContent>
 
@@ -234,7 +282,7 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
             <Button size="sm">Novo Contato</Button>
           </div>
           <div className="grid gap-4">
-            {mockContacts.map((contact) => (
+            {contacts.map((contact) => (
               <Card key={contact.id}>
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
@@ -250,6 +298,9 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
                 </CardContent>
               </Card>
             ))}
+            {contacts.length === 0 && (
+              <p className="text-muted-foreground text-center py-8">Nenhum contato cadastrado</p>
+            )}
           </div>
         </TabsContent>
 
@@ -259,7 +310,7 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
             <Button size="sm">Novo Material</Button>
           </div>
           <div className="grid gap-4">
-            {mockMaterials.map((material) => (
+            {materials.map((material) => (
               <Card key={material.id}>
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
@@ -287,6 +338,9 @@ export function SubjectDetails({ subjectId }: SubjectDetailsProps) {
                 </CardContent>
               </Card>
             ))}
+            {materials.length === 0 && (
+              <p className="text-muted-foreground text-center py-8">Nenhum material cadastrado</p>
+            )}
           </div>
         </TabsContent>
       </Tabs>

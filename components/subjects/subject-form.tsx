@@ -19,6 +19,7 @@ interface SubjectFormProps {
     sala: string
     professor: string
     horario: string
+    semestre: string
     avaliacoes: string
     faltas: number
     notas: number
@@ -26,7 +27,7 @@ interface SubjectFormProps {
   } | null
   onSubmit?: (data: any) => void
   onCancel: () => void
-  onSuccess?: () => void // Callback para atualizar a lista
+  onSuccess?: () => void
 }
 
 export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) {
@@ -35,6 +36,7 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
     sala: "",
     professor: "",
     horario: "",
+    semestre: "",
     avaliacoes: "",
     faltas: 0,
     notas: 0,
@@ -49,6 +51,7 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
         sala: subject.sala,
         professor: subject.professor,
         horario: subject.horario,
+        semestre: subject.semestre || "",
         avaliacoes: subject.avaliacoes,
         faltas: subject.faltas,
         notas: subject.notas,
@@ -61,7 +64,6 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
     setIsLoading(true)
 
     try {
-      // Pegar o userId do localStorage
       const userString = localStorage.getItem("user")
       const user = userString ? JSON.parse(userString) : null
       
@@ -80,14 +82,12 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
       }
 
       if (subject) {
-        // Editar disciplina existente
         await disciplinasAPI.update(subject.id, dataToSend)
         toast({
           title: "Disciplina atualizada!",
           description: "As alterações foram salvas com sucesso.",
         })
       } else {
-        // Criar nova disciplina
         await disciplinasAPI.create(dataToSend)
         toast({
           title: "Disciplina criada!",
@@ -95,9 +95,14 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
         })
       }
 
-      // Chamar callback de sucesso para atualizar a lista
+      window.dispatchEvent(new CustomEvent('disciplinasUpdated', {
+        detail: { action: subject?.id ? 'updated' : 'created' }
+      }))
+      
+      localStorage.setItem('disciplinasLastUpdate', Date.now().toString())
+
       onSuccess?.()
-      onCancel() // Fechar o modal
+      onCancel()
 
     } catch (error: any) {
       console.error("Erro ao salvar disciplina:", error)
@@ -182,6 +187,18 @@ export function SubjectForm({ subject, onCancel, onSuccess }: SubjectFormProps) 
                 value={formData.horario}
                 onChange={handleChange}
                 placeholder="Ex: Seg/Qua 14:00-16:00"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="semestre">Semestre</Label>
+              <Input
+                id="semestre"
+                name="semestre"
+                value={formData.semestre}
+                onChange={handleChange}
+                placeholder="Ex: 2024.1"
                 required
               />
             </div>

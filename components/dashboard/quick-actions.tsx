@@ -40,7 +40,6 @@ export function QuickActions() {
   const handleAddSubject = async (subjectData: any) => {
     try {
       await disciplinasAPI.create(subjectData)
-      // Refresh subjects list
       const response = await disciplinasAPI.getAll()
       setSubjects(response.data)
       setShowSubjectForm(false)
@@ -158,7 +157,7 @@ export function QuickActions() {
       {showSubjectForm && <SubjectForm onSubmit={handleAddSubject} onCancel={() => setShowSubjectForm(false)} />}
 
       {showReminderForm && (
-        <ReminderForm subjects={subjects} onSubmit={handleAddReminder} onCancel={() => setShowReminderForm(false)} />
+        <ReminderForm onSuccess={() => setShowReminderForm(false)} onCancel={() => setShowReminderForm(false)} />
       )}
 
       {showContactForm && (

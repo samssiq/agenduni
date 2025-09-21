@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,71 +8,205 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { X } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { lembretesAPI, disciplinasAPI } from "@/lib/api"
+
+interface Subject {
+  id: number
+  nome: string
+  sala: string
+  professor: string
+  horario: string
+  avaliacoes: string
+  faltas: number
+  notas: number
+  userId: number
+}
 
 interface ReminderFormProps {
   reminder?: {
     id: number
-    data_inicio: Date
-    data_fim: Date
+    nome: string
+    descricao: string
+    data_inicio: string
+    data_fim?: string
     discId: number
-    tipo: string
-    descricao?: string
+    userId: number
   } | null
-  subjects: Array<{ id: number; nome: string }>
-  onSubmit: (data: any) => void
   onCancel: () => void
+  onSuccess?: () => void
 }
 
-export function ReminderForm({ reminder, subjects, onSubmit, onCancel }: ReminderFormProps) {
+export function ReminderForm({ reminder, onCancel, onSuccess }: ReminderFormProps) {
   const [formData, setFormData] = useState({
-    tipo: "",
+    titulo: "",
     descricao: "",
-    discId: "",
-    data_inicio: "",
-    hora_inicio: "",
-    data_fim: "",
-    hora_fim: "",
+    dataLembrete: "",
+    discId: 0, // ← MUDADO: usar discId
   })
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(true)
+  const { toast } = useToast()
 
+  // Carregar disciplinas ao montar o componente
+  useEffect(() => {
+    const loadSubjects = async () => {
+      try {
+        setIsLoadingSubjects(true)
+        const response = await disciplinasAPI.getAll()
+        console.log("Disciplinas carregadas:", response.data)
+        setSubjects(response.data || [])
+      } catch (error) {
+        console.error("Erro ao carregar disciplinas:", error)
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as disciplinas.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingSubjects(false)
+      }
+    }
+
+    loadSubjects()
+  }, [])
+
+  // Preencher dados se for edição
   useEffect(() => {
     if (reminder) {
-      const dataInicio = new Date(reminder.data_inicio)
-      const dataFim = new Date(reminder.data_fim)
+      console.log("Reminder recebido para edição:", reminder)
+      
+      // Extrair data no formato correto
+      let dataFormatada = ""
+      if (reminder.data_inicio) {
+        try {
+          dataFormatada = new Date(reminder.data_inicio).toISOString().split('T')[0]
+        } catch (error) {
+          console.error("Erro ao formatar data:", error)
+          dataFormatada = ""
+        }
+      }
 
       setFormData({
-        tipo: reminder.tipo,
+        titulo: reminder.nome || "",
         descricao: reminder.descricao || "",
-        discId: reminder.discId.toString(),
-        data_inicio: dataInicio.toISOString().split("T")[0],
-        hora_inicio: dataInicio.toTimeString().slice(0, 5),
-        data_fim: dataFim.toISOString().split("T")[0],
-        hora_fim: dataFim.toTimeString().slice(0, 5),
+        dataLembrete: dataFormatada,
+        discId: reminder.discId || 0, // ← MUDADO: usar discId
       })
     }
   }, [reminder])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const dataInicio = new Date(`${formData.data_inicio}T${formData.hora_inicio}:00`)
-    const dataFim = new Date(`${formData.data_fim}T${formData.hora_fim}:00`)
+    console.log("=== INÍCIO DO SUBMIT ===")
+    console.log("FormData atual:", formData)
 
-    const reminderData = {
-      tipo: formData.tipo,
-      descricao: formData.descricao,
-      discId: Number.parseInt(formData.discId),
-      data_inicio: dataInicio,
-      data_fim: dataFim,
+    if (formData.discId === 0) { // ← MUDADO: validar discId
+      console.log("Erro: disciplina não selecionada")
+      toast({
+        title: "Erro",
+        description: "Selecione uma disciplina.",
+        variant: "destructive",
+      })
+      return
     }
 
-    onSubmit(reminderData)
+    setIsLoading(true)
+
+    try {
+      const userString = localStorage.getItem("user")
+      const user = userString ? JSON.parse(userString) : null
+      
+      console.log("User do localStorage:", user)
+      
+      if (!user) {
+        console.log("Erro: usuário não encontrado")
+        toast({
+          title: "Erro",
+          description: "Usuário não encontrado. Faça login novamente.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Mapear para os campos que o backend espera
+      const dataToSend = {
+        nome: formData.titulo, // Backend espera 'nome'
+        descricao: formData.descricao,
+        data_inicio: new Date(formData.dataLembrete).toISOString(), // Backend espera 'data_inicio'
+        data_fim: new Date(formData.dataLembrete).toISOString(), // Mesmo valor
+        discId: formData.discId, // ← MUDADO: Backend espera 'discId'
+        userId: user.id
+      }
+
+      console.log("Dados que serão enviados:", dataToSend)
+      console.log("URL da requisição:", reminder ? `PATCH /lembretes/${reminder.id}` : "POST /lembretes")
+
+      let response
+      if (reminder) {
+        console.log("Atualizando lembrete existente...")
+        response = await lembretesAPI.update(reminder.id, dataToSend)
+      } else {
+        console.log("Criando novo lembrete...")
+        response = await lembretesAPI.create(dataToSend)
+      }
+
+      console.log("Resposta da API:", response)
+      console.log("Status da resposta:", response.status)
+      console.log("Dados da resposta:", response.data)
+
+      // Verificar se foi criado com sucesso
+      if (response.status === 201 || response.status === 200) {
+        toast({
+          title: reminder ? "Lembrete atualizado!" : "Lembrete criado!",
+          description: reminder ? "O lembrete foi editado com sucesso." : "O lembrete foi adicionado com sucesso.",
+        })
+
+        console.log("Chamando onSuccess...")
+        onSuccess?.()
+        console.log("Fechando modal...")
+        onCancel()
+      } else {
+        throw new Error("Status inesperado na resposta")
+      }
+
+    } catch (error: any) {
+      console.error("=== ERRO AO SALVAR LEMBRETE ===")
+      console.error("Erro completo:", error)
+      console.error("Resposta do erro:", error.response?.data)
+      console.error("Status do erro:", error.response?.status)
+      console.error("Config da requisição:", error.config)
+      
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          "Erro de conexão com o servidor"
+
+      toast({
+        title: "Erro ao salvar lembrete",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+      console.log("=== FIM DO SUBMIT ===")
+    }
   }
 
-  const handleChange = (name: string, value: string) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    console.log(`Campo alterado: ${name} = ${value}`)
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }))
+  }
+
+  const handleSelectChange = (value: string) => {
+    const discId = parseInt(value) // ← MUDADO: usar discId
+    console.log(`Disciplina selecionada: ${discId}`)
+    setFormData(prev => ({ ...prev, discId }))
   }
 
   return (
@@ -92,10 +224,26 @@ export function ReminderForm({ reminder, subjects, onSubmit, onCancel }: Reminde
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="titulo">Título</Label>
+              <Input
+                id="titulo"
+                name="titulo"
+                value={formData.titulo}
+                onChange={handleChange}
+                placeholder="Ex: Prova de Cálculo"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="discId">Disciplina</Label>
-              <Select value={formData.discId} onValueChange={(value) => handleChange("discId", value)}>
+              <Select
+                value={formData.discId.toString()}
+                onValueChange={handleSelectChange}
+                disabled={isLoadingSubjects}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma disciplina" />
+                  <SelectValue placeholder={isLoadingSubjects ? "Carregando..." : "Selecione uma disciplina"} />
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((subject) => (
@@ -108,78 +256,32 @@ export function ReminderForm({ reminder, subjects, onSubmit, onCancel }: Reminde
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tipo">Tipo do Lembrete</Label>
+              <Label htmlFor="dataLembrete">Data do Lembrete</Label>
               <Input
-                id="tipo"
-                value={formData.tipo}
-                onChange={(e) => handleChange("tipo", e.target.value)}
-                placeholder="Ex: Prova P2, Entrega de Trabalho"
+                id="dataLembrete"
+                name="dataLembrete"
+                type="date"
+                value={formData.dataLembrete}
+                onChange={handleChange}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição (opcional)</Label>
+              <Label htmlFor="descricao">Descrição</Label>
               <Textarea
                 id="descricao"
+                name="descricao"
                 value={formData.descricao}
-                onChange={(e) => handleChange("descricao", e.target.value)}
-                placeholder="Detalhes adicionais sobre o lembrete"
+                onChange={handleChange}
+                placeholder="Detalhes do lembrete..."
                 rows={3}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="data_inicio">Data de Início</Label>
-                <Input
-                  id="data_inicio"
-                  type="date"
-                  value={formData.data_inicio}
-                  onChange={(e) => handleChange("data_inicio", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hora_inicio">Hora de Início</Label>
-                <Input
-                  id="hora_inicio"
-                  type="time"
-                  value={formData.hora_inicio}
-                  onChange={(e) => handleChange("hora_inicio", e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="data_fim">Data de Fim</Label>
-                <Input
-                  id="data_fim"
-                  type="date"
-                  value={formData.data_fim}
-                  onChange={(e) => handleChange("data_fim", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hora_fim">Hora de Fim</Label>
-                <Input
-                  id="hora_fim"
-                  type="time"
-                  value={formData.hora_fim}
-                  onChange={(e) => handleChange("hora_fim", e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
             <div className="flex gap-2 pt-4">
-              <Button type="submit" className="flex-1">
-                {reminder ? "Salvar Alterações" : "Criar Lembrete"}
+              <Button type="submit" className="flex-1" disabled={isLoading || isLoadingSubjects}>
+                {isLoading ? "Salvando..." : (reminder ? "Salvar Alterações" : "Criar Lembrete")}
               </Button>
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancelar

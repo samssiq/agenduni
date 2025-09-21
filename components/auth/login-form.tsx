@@ -37,14 +37,46 @@ export function LoginForm() {
         description: `Bem-vindo, ${user.nome}!`,
       })
 
-      // Redirecionar para subjects ao invés de dashboard
-      router.push("/subjects")
+      // Redirecionar para dashboard após login
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Erro no login:", error)
       
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          "Erro de conexão com o servidor"
+      // Tratamento específico de erros de login
+      let errorMessage = "Erro de conexão com o servidor"
+      
+      if (error.response?.status === 401 || error.response?.status === 400) {
+        const serverMessage = error.response?.data?.message || error.response?.data?.error || ""
+        
+        // Verificar se são credenciais inválidas
+        if (serverMessage.toLowerCase().includes("credenciais") ||
+            serverMessage.toLowerCase().includes("email") ||
+            serverMessage.toLowerCase().includes("senha") ||
+            serverMessage.toLowerCase().includes("invalid") ||
+            serverMessage.toLowerCase().includes("incorrect")) {
+          errorMessage = "E-mail ou senha incorretos. Verifique suas credenciais e tente novamente."
+        }
+        else if (serverMessage.toLowerCase().includes("usuário") && serverMessage.toLowerCase().includes("não encontrado")) {
+          errorMessage = "Usuário não encontrado. Verifique o e-mail ou crie uma nova conta."
+        }
+        else if (serverMessage) {
+          errorMessage = serverMessage
+        } else {
+          errorMessage = "Dados de login inválidos."
+        }
+      }
+      // Erro 500 - problema no servidor  
+      else if (error.response?.status === 500) {
+        errorMessage = "Erro interno do servidor. Tente novamente em alguns minutos."
+      }
+      // Outros erros do servidor
+      else if (error.response?.data?.message || error.response?.data?.error) {
+        errorMessage = error.response.data.message || error.response.data.error
+      }
+      // Erro de rede/conexão
+      else if (error.code === 'NETWORK_ERROR' || !error.response) {
+        errorMessage = "Erro de conexão. Verifique sua internet e tente novamente."
+      }
 
       toast({
         title: "Erro no login",

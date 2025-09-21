@@ -41,6 +41,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (email: string, senha: string) => api.post("/users/login", { email, senha }),
   register: (nome: string, email: string, senha: string) => api.post("/users", { nome, email, senha }),
+  updateProfile: (id: number, nome: string, email: string) => api.patch(`/users/${id}`, { nome, email }),
 }
 
 export const disciplinasAPI = {
@@ -49,7 +50,7 @@ export const disciplinasAPI = {
       const userString = localStorage.getItem("user")
       const user = userString ? JSON.parse(userString) : null
       if (user) {
-        return api.get(`/disciplinas/disciplinas/${user.id}`)
+        return api.get(`/disciplinas/user/${user.id}`)
       }
     }
     return Promise.reject(new Error("Usuário não encontrado"))
@@ -60,6 +61,7 @@ export const disciplinasAPI = {
     sala: data.sala,
     professor: data.professor,
     horario: data.horario,
+    semestre: data.semestre,
     avaliacoes: data.avaliacoes || "",
     faltas: data.faltas || 0,
     notas: data.notas || 0,
@@ -70,26 +72,64 @@ export const disciplinasAPI = {
 }
 
 export const lembretesAPI = {
-  getAll: () => api.get("/lembretes"),
-  getByDisciplina: (discId: number) => api.get(`/lembretes/disciplina/${discId}`),
-  create: (data: any) => api.post("/lembretes", data),
-  update: (id: number, data: any) => api.put(`/lembretes/${id}`, data),
+  getAll: () => {
+    if (typeof window !== 'undefined') {
+      const userString = localStorage.getItem("user")
+      const user = userString ? JSON.parse(userString) : null
+      if (user) {
+        return api.get(`/lembretes/user/${user.id}`)
+      }
+    }
+    return Promise.reject(new Error("Usuário não encontrado"))
+  },
+  getByDisciplina: (discId: number) => api.get(`/lembretes/lembretes/${discId}`),
+  create: (data: any) => api.post("/lembretes", {
+    nome: data.nome,
+    descricao: data.descricao,
+    data_inicio: data.data_inicio,
+    data_fim: data.data_fim,
+    discId: data.discId,
+    userId: data.userId
+  }),
+  update: (id: number, data: any) => api.patch(`/lembretes/${id}`, data),
   delete: (id: number) => api.delete(`/lembretes/${id}`),
 }
 
 export const contatosAPI = {
+  getAll: () => {
+    if (typeof window !== 'undefined') {
+      const userString = localStorage.getItem("user")
+      const user = userString ? JSON.parse(userString) : null
+      if (user) {
+        return api.get(`/contatos/user/${user.id}`)
+      }
+    }
+    return Promise.reject(new Error("Usuário não encontrado"))
+  },
   getByDisciplina: (discId: number) => api.get(`/contatos/disciplina/${discId}`),
   create: (data: any) => api.post("/contatos", data),
-  update: (id: number, data: any) => api.put(`/contatos/${id}`, data),
+  update: (id: number, data: any) => api.patch(`/contatos/${id}`, data),
   delete: (id: number) => api.delete(`/contatos/${id}`),
 }
 
 export const materiaisAPI = {
-  getByDisciplina: (discId: number) => api.get(`/materiais/disciplina/${discId}`),
-  create: (data: FormData) =>
-    api.post("/materiais", data, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
-  update: (id: number, data: any) => api.put(`/materiais/${id}`, data),
+  getAll: () => {
+    if (typeof window !== 'undefined') {
+      const userString = localStorage.getItem("user")
+      const user = userString ? JSON.parse(userString) : null
+      if (user) {
+        return api.get(`/materiais/user/${user.id}`)
+      }
+    }
+    return Promise.reject(new Error("Usuário não encontrado"))
+  },
+  getByDisciplina: (discId: number) => api.get(`/materiais/materiais/${discId}`),
+  create: (data: any) => api.post("/materiais", {
+    nome: data.nome,
+    resumos: data.resumos,
+    links: data.links,
+    discId: data.discId,
+  }),
+  update: (id: number, data: any) => api.patch(`/materiais/${id}`, data),
   delete: (id: number) => api.delete(`/materiais/${id}`),
 }

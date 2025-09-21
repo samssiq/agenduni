@@ -19,6 +19,16 @@ export function DashboardHeader() {
     } else {
       router.push("/login")
     }
+
+    const handleUserUpdate = (event: CustomEvent) => {
+      setUser(event.detail)
+    }
+
+    window.addEventListener('userUpdated', handleUserUpdate as EventListener)
+
+    return () => {
+      window.removeEventListener('userUpdated', handleUserUpdate as EventListener)
+    }
   }, [router])
 
   const handleLogout = () => {
@@ -71,9 +81,11 @@ export function DashboardHeader() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end">
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Perfil</span>
+              <DropdownMenuItem asChild>
+                <Link href="/profile" className="flex items-center w-full">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Perfil</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />

@@ -9,14 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { X, Upload } from "lucide-react"
+import { X } from "lucide-react"
 
 interface MaterialFormProps {
   material?: {
     id: number
+    nome: string
     resumos: string
     links: string
-    arquivos: string
     discId: number
   } | null
   subjects: Array<{ id: number; nome: string }>
@@ -26,18 +26,18 @@ interface MaterialFormProps {
 
 export function MaterialForm({ material, subjects, onSubmit, onCancel }: MaterialFormProps) {
   const [formData, setFormData] = useState({
+    nome: "",
     resumos: "",
     links: "",
-    arquivos: "",
     discId: "",
   })
 
   useEffect(() => {
     if (material) {
       setFormData({
+        nome: material.nome,
         resumos: material.resumos,
         links: material.links,
-        arquivos: material.arquivos,
         discId: material.discId.toString(),
       })
     }
@@ -47,9 +47,9 @@ export function MaterialForm({ material, subjects, onSubmit, onCancel }: Materia
     e.preventDefault()
 
     const materialData = {
+      nome: formData.nome,
       resumos: formData.resumos,
       links: formData.links,
-      arquivos: formData.arquivos,
       discId: Number.parseInt(formData.discId),
     }
 
@@ -61,17 +61,6 @@ export function MaterialForm({ material, subjects, onSubmit, onCancel }: Materia
       ...prev,
       [name]: value,
     }))
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // In a real app, you would upload the file and get a URL
-      setFormData((prev) => ({
-        ...prev,
-        arquivos: file.name,
-      }))
-    }
   }
 
   return (
@@ -105,14 +94,24 @@ export function MaterialForm({ material, subjects, onSubmit, onCancel }: Materia
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="resumos">Resumos e Anotações</Label>
+              <Label htmlFor="nome">Nome do Material</Label>
+              <Input
+                id="nome"
+                value={formData.nome}
+                onChange={(e) => handleChange("nome", e.target.value)}
+                placeholder="Ex: Resumo de LEDA, Exercícios de Cálculo, Projeto Final..."
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="resumos">Descrição</Label>
               <Textarea
                 id="resumos"
                 value={formData.resumos}
                 onChange={(e) => handleChange("resumos", e.target.value)}
-                placeholder="Resumo sobre derivadas e integrais, anotações da aula..."
+                placeholder="Descrição opcional sobre o material, anotações importantes..."
                 rows={4}
-                required
               />
             </div>
 
@@ -122,36 +121,12 @@ export function MaterialForm({ material, subjects, onSubmit, onCancel }: Materia
                 id="links"
                 value={formData.links}
                 onChange={(e) => handleChange("links", e.target.value)}
-                placeholder="https://exemplo.com/calculo2&#10;https://youtube.com/watch?v=..."
-                rows={3}
+                placeholder="https://exemplo.com/calculo2&#10;https://youtube.com/watch?v=...&#10;https://drive.google.com/file/d/..."
+                rows={4}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="arquivos">Arquivos</Label>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="file"
-                    id="arquivos"
-                    onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => document.getElementById("arquivos")?.click()}
-                    className="flex-1"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Selecionar Arquivo
-                  </Button>
-                </div>
-                {formData.arquivos && (
-                  <p className="text-sm text-muted-foreground">Arquivo selecionado: {formData.arquivos}</p>
-                )}
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Adicione links para PDFs, vídeos, artigos ou arquivos no Google Drive/OneDrive (um link por linha)
+              </p>
             </div>
 
             <div className="flex gap-2 pt-4">

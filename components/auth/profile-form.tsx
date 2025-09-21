@@ -1,42 +1,76 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { authAPI } from "@/lib/api"
 
-export function RegisterForm() {
+interface User {
+  id: number
+  nome: string
+  email: string
+}
+
+export function ProfileForm() {
   const [nome, setNome] = useState("")
   const [email, setEmail] = useState("")
-  const [senha, setSenha] = useState("")
-  const [confirmSenha, setConfirmSenha] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
   const { toast } = useToast()
 
+  useEffect(() => {
+    console.log("=== PERFIL USEEFFECT ===")
+    // Carregar dados do usuário do localStorage
+    const userData = localStorage.getItem("user")
+    console.log("UserData do localStorage:", userData)
+    if (userData) {
+      const parsedUser = JSON.parse(userData)
+      console.log("Parsed user:", parsedUser)
+      setUser(parsedUser)
+      setNome(parsedUser.nome)
+      setEmail(parsedUser.email)
+    } else {
+      console.log("Sem dados de usuário, redirecionando para login")
+      router.push("/login")
+    }
+  }, [router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Validações
-    if (senha !== confirmSenha) {
+    
+    console.log("=== PERFIL SUBMIT ===")
+    console.log("Nome:", nome)
+    console.log("Email:", email)
+    console.log("User:", user)
+    
+    if (!user) {
       toast({
         title: "Erro",
-        description: "As senhas não coincidem",
+        description: "Dados do usuário não encontrados. Faça login novamente.",
         variant: "destructive",
       })
       return
     }
 
-    if (senha.length < 6) {
+    if (!nome.trim() || !email.trim()) {
       toast({
         title: "Erro",
-        description: "A senha deve ter pelo menos 6 caracteres",
+        description: "Nome e email são obrigatórios.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      toast({
+        title: "Erro",
+        description: "Por favor, insira um e-mail válido.",
         variant: "destructive",
       })
       return
@@ -45,23 +79,23 @@ export function RegisterForm() {
     setIsLoading(true)
 
     try {
-      // Criar usuário usando a API real
-      const response = await authAPI.register(nome, email, senha)
-      
-      // Backend retorna: { id, nome, email, senha }
-      const user = response.data
+      // Atualizar dados do usuário
+      const response = await authAPI.updateProfile(user.id, nome.trim(), email.trim())
+
+      // Atualizar dados no localStorage
+      const updatedUser = { ...user, nome: nome.trim(), email: email.trim() }
+      localStorage.setItem("user", JSON.stringify(updatedUser))
+      setUser(updatedUser)
 
       toast({
-        title: "Conta criada com sucesso!",
-        description: `Bem-vindo, ${user.nome}! Agora faça login.`,
+        title: "Perfil atualizado!",
+        description: "Suas informações foram atualizadas com sucesso.",
       })
 
-      // Redirecionar para página de login após registro
-      router.push("/login")
     } catch (error: any) {
-      console.error("Erro no registro:", error)
+      console.error("Erro ao atualizar perfil:", error)
       
-      // Verificar se o erro é de email já existente
+      // Tratamento específico de erros
       let errorMessage = "Erro de conexão com o servidor"
       
       if (error.response?.status === 400 || error.response?.status === 409) {
@@ -74,22 +108,26 @@ export function RegisterForm() {
              serverMessage.toLowerCase().includes("duplicat") ||
              serverMessage.toLowerCase().includes("unique") ||
              serverMessage.toLowerCase().includes("em uso"))) {
-          errorMessage = "Este e-mail já está em uso. Tente fazer login ou use outro e-mail."
-        } 
-        // Verificar outros erros de validação
-        else if (serverMessage.toLowerCase().includes("senha") && serverMessage.toLowerCase().includes("fraca")) {
-          errorMessage = "Senha muito fraca. Use pelo menos 6 caracteres com números e letras."
+          errorMessage = "Este e-mail já está em uso por outro usuário."
         }
         else if (serverMessage.toLowerCase().includes("email") && serverMessage.toLowerCase().includes("inválido")) {
-          errorMessage = "Formato de e-mail inválido. Verifique o endereço digitado."
+          errorMessage = "Formato de e-mail inválido."
         }
         else if (serverMessage) {
           errorMessage = serverMessage
         } else {
           errorMessage = "Dados inválidos. Verifique as informações e tente novamente."
         }
-      } 
-      // Erro 500 - problema no servidor
+      }
+      // Erro de autenticação
+      else if (error.response?.status === 401) {
+        errorMessage = "Sessão expirada. Faça login novamente."
+        localStorage.removeItem("token")
+        localStorage.removeItem("user")
+        router.push("/login")
+        return
+      }
+      // Erro 500 - problema no servidor  
       else if (error.response?.status === 500) {
         errorMessage = "Erro interno do servidor. Tente novamente em alguns minutos."
       }
@@ -103,13 +141,21 @@ export function RegisterForm() {
       }
 
       toast({
-        title: "Erro ao criar conta",
+        title: "Erro ao atualizar perfil",
         description: errorMessage,
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    )
   }
 
   return (
@@ -138,40 +184,17 @@ export function RegisterForm() {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="senha">Senha</Label>
-        <Input
-          id="senha"
-          type="password"
-          placeholder="Mínimo 6 caracteres"
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          required
-          minLength={6}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="confirmSenha">Confirmar senha</Label>
-        <Input
-          id="confirmSenha"
-          type="password"
-          placeholder="Digite a senha novamente"
-          value={confirmSenha}
-          onChange={(e) => setConfirmSenha(e.target.value)}
-          required
-        />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Criando conta..." : "Criar Conta"}
-      </Button>
-
-      <div className="text-center text-sm">
-        <span className="text-muted-foreground">Já tem uma conta? </span>
-        <Link href="/login" className="text-primary hover:underline">
-          Fazer login
-        </Link>
+      <div className="flex gap-2 pt-4">
+        <Button type="submit" className="flex-1" disabled={isLoading}>
+          {isLoading ? "Salvando..." : "Salvar Alterações"}
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={() => router.back()}
+        >
+          Voltar
+        </Button>
       </div>
     </form>
   )

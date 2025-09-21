@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MapPin, User, Clock, Edit, Plus } from "lucide-react"
+import { MapPin, User, Clock, Edit } from "lucide-react"
 import { disciplinasAPI } from "@/lib/api"
 
 interface Disciplina {
@@ -36,6 +36,40 @@ export function SubjectGrid() {
     }
 
     fetchSubjects()
+
+    localStorage.setItem('disciplinasLastCheck', Date.now().toString())
+
+    const handleDisciplinasUpdated = () => {
+      fetchSubjects()
+    }
+
+    const handleWindowFocus = () => {
+      const lastUpdate = localStorage.getItem('disciplinasLastUpdate')
+      if (lastUpdate) {
+        fetchSubjects()
+      }
+    }
+
+    const checkForUpdates = () => {
+      const lastUpdate = localStorage.getItem('disciplinasLastUpdate')
+      const lastCheck = localStorage.getItem('disciplinasLastCheck')
+      
+      if (lastUpdate && lastUpdate !== lastCheck) {
+        fetchSubjects()
+        localStorage.setItem('disciplinasLastCheck', lastUpdate)
+      }
+    }
+
+    const pollingInterval = setInterval(checkForUpdates, 2000)
+
+    window.addEventListener('disciplinasUpdated', handleDisciplinasUpdated)
+    window.addEventListener('focus', handleWindowFocus)
+
+    return () => {
+      window.removeEventListener('disciplinasUpdated', handleDisciplinasUpdated)
+      window.removeEventListener('focus', handleWindowFocus)
+      clearInterval(pollingInterval)
+    }
   }, [])
 
   const getGradeColor = (grade: number) => {
@@ -58,10 +92,6 @@ export function SubjectGrid() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Minhas Disciplinas</h2>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Disciplina
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

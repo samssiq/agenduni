@@ -131,11 +131,11 @@ export function ContactList() {
       fetchData()
       setEditingContact(null)
       setShowForm(false)
-    } catch (error) {
-      console.error("Error updating contact:", error)
+    } catch (error: any) {
+      console.error("Erro ao atualizar contato:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar o contato",
+        description: error.response?.data?.error || "Não foi possível atualizar o contato",
         variant: "destructive",
       })
     }

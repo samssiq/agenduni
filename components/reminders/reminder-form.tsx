@@ -100,14 +100,10 @@ export function ReminderForm({ reminder, onCancel, onSuccess }: ReminderFormProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    console.log("=== INÍCIO DO SUBMIT ===")
-    console.log("FormData atual:", formData)
-
-    if (formData.discId === 0) { // ← MUDADO: validar discId
-      console.log("Erro: disciplina não selecionada")
+    if (formData.discId === 0) {
       toast({
-        title: "Erro",
-        description: "Selecione uma disciplina.",
+        title: "Campo obrigatório",
+        description: "Por favor, selecione uma disciplina.",
         variant: "destructive",
       })
       return
@@ -236,13 +232,15 @@ export function ReminderForm({ reminder, onCancel, onSuccess }: ReminderFormProp
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="discId">Disciplina</Label>
+              <Label htmlFor="discId">
+                Disciplina <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={formData.discId.toString()}
                 onValueChange={handleSelectChange}
                 disabled={isLoadingSubjects}
               >
-                <SelectTrigger>
+                <SelectTrigger className={formData.discId === 0 ? "border-red-300" : ""}>
                   <SelectValue placeholder={isLoadingSubjects ? "Carregando..." : "Selecione uma disciplina"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -253,6 +251,9 @@ export function ReminderForm({ reminder, onCancel, onSuccess }: ReminderFormProp
                   ))}
                 </SelectContent>
               </Select>
+              {formData.discId === 0 && (
+                <p className="text-sm text-red-500">Este campo é obrigatório</p>
+              )}
             </div>
 
             <div className="space-y-2">
